@@ -45,18 +45,6 @@ To point it at your own API, change `apiBase` in the Config node, and restart th
 
 The workflow ships inactive. Leave it that way until `apiBase` points where you intend.
 
-## Want more? Pro pack
-
-This repo is one workflow, given away so you can see the retry pattern and run it yourself.
-
-The paid n8n skill and workflows pack adds five more importable workflows (JSON transform, HTTP fetch and normalise, list filter, event digest, inbound payload validation), plus Claude / Cursor skills and a test suite that executes every flow on a local n8n. There is also an n8n agent pack for tool routing, an approval gate and output guardrails.
-
-They are listed together here:
-
-https://getgofetch.dev/kits
-
-Until that page is live and the store is approved, there is nothing to buy. Checkout links on that page stay as placeholders until then. No support is promised on the packs either; the files are provided as is.
-
 ## Licence
 
 MIT. See `LICENSE`.
