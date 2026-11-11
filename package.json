@@ -1,0 +1,12 @@
+{
+  "name": "n8n-http-retry-sample",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Free n8n sample: retry an HTTP request until a flaky API recovers",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "mock": "node mock-server.mjs"
+  }
+}
