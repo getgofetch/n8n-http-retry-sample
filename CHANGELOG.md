@@ -13,10 +13,11 @@ and **alexcarter159** on the n8n forum. Every point below came from you.
   fixed 200 ms wait.
 - **Retry-After honoured** on 429 and 503, in both delta-seconds and HTTP-date form, with a maximum wait (`maxWaitMs`).
   A longer Retry-After fails fast.
-- **Idempotent methods only by default.** GET, HEAD, PUT and DELETE retry. POST/PATCH retry only with `retryPost: true`
+- **Idempotent methods only by default.** GET, HEAD, OPTIONS, PUT and DELETE retry. POST/PATCH retry only with `retryPost: true`
   plus an `idempotencyKey`, sent as the `Idempotency-Key` header on every attempt.
 - **Failure branch.** The HTTP node uses On Error > Continue (using error output) for network errors, and every final
-  failure ends on a `Failed` node showing `status`, `attempts` and `reason`.
+  failure goes to a `Failed` node showing `status`, `attempts` and `reason`, then a Stop and Error node marks the
+  execution as failed. Deleting Stop and Error is documented as an option if you want the run to end quietly.
 - **Configurable mock.** Status codes, headers (including a future HTTP-date) and response sequences can be set per run,
   and every request is logged with its method and Idempotency-Key.
 - **More tests.** Three 503s give exactly 3 requests and a visible final status; a 401 gives exactly 1 request;

@@ -194,7 +194,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Final failure. Status and attempt count stay visible here.\n// In production, add a Stop and Error node after this (or an alert) so the execution is marked failed.\nconst d = $input.first().json;\nreturn [{ json: { ok: false, status: d.status, attempts: d.attempts, reason: d.reason, method: d.method, url: d.url, error: d.error, body: d.body } }];\n"
+        "jsCode": "// Final failure. Status, attempt count and reason are visible here.\n// The Stop and Error node after this marks the execution as failed (so Error Workflows and alerts fire).\n// Optional: delete Stop and Error if you want the run to end quietly on this node instead.\nconst d = $input.first().json;\nreturn [{ json: { ok: false, status: d.status, attempts: d.attempts, reason: d.reason, method: d.method, url: d.url, error: d.error, body: d.body } }];\n"
       },
       "id": "7f1e3d55-8c2a-4b6d-9e0f-1a2b3c4d5e55",
       "name": "Failed",
@@ -204,6 +204,21 @@
         1120,
         200
       ]
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "={{ 'HTTP request failed: status ' + ($json.status ?? 'none') + ' after ' + $json.attempts + ' attempt(s) (' + $json.reason + ') ' + $json.method + ' ' + $json.url }}"
+      },
+      "id": "8a2f4e66-9d3b-4c7e-8f10-2b3c4d5e6f66",
+      "name": "Stop and Error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        200
+      ],
+      "notes": "Marks the execution as failed so Error Workflows and alerts fire. Delete this node if you want the run to end quietly on Failed instead."
     }
   ],
   "connections": {
@@ -277,6 +292,17 @@
         [
           {
             "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed": {
+      "main": [
+        [
+          {
+            "node": "Stop and Error",
             "type": "main",
             "index": 0
           }

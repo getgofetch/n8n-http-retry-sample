@@ -14,8 +14,9 @@ This is a sample, not a hosted n8n. You run it on your own instance.
 | Network error, timeout, 408, 429, 5xx (not 501/505) | Retried with exponential backoff and jitter: ~1 s, ~4 s, ~16 s ... up to `maxAttempts` |
 | 429 or 503 with `Retry-After` | Waits what the server asked, in seconds (`Retry-After: 2`) or an HTTP-date. If that is longer than `maxWaitMs`, it fails fast instead of hammering |
 | 400, 401, 403, 404, 422 and other 4xx | Fails on the first attempt. Retrying a 401 can lock an account |
+| GET, HEAD, OPTIONS, PUT, DELETE | Retried by default (idempotent) |
 | POST / PATCH | Not retried, unless you set `retryPost: true` **and** an `idempotencyKey` (sent as the `Idempotency-Key` header) |
-| Retries used up | `Failed` returns `{ ok: false, status, attempts, reason, error }` |
+| Retries used up | `Failed` shows `{ ok: false, status, attempts, reason, method, url, error, body }`, then **Stop and Error** marks the execution as failed (so Error Workflows and alerts fire) |
 
 ## Quick start
 
@@ -42,7 +43,7 @@ By default the mock at `http://127.0.0.1:34771/flaky` returns 503, 503, then 200
 | Setting | Default | Notes |
 |---|---|---|
 | `apiBase`, `path` | `http://127.0.0.1:34771`, `/flaky` | Point these at your API |
-| `method` | `GET` | GET, HEAD, PUT, DELETE are retried by default |
+| `method` | `GET` | GET, HEAD, OPTIONS, PUT, DELETE are retried by default |
 | `retryPost` | `false` | POST/PATCH retry opt-in. Needs `idempotencyKey`, or Config stops the run |
 | `idempotencyKey` | `''` | Sent as `Idempotency-Key` on every attempt |
 | `maxAttempts` | `3` | Total requests including the first. Set 4 for a third retry at ~16 s |
@@ -63,7 +64,10 @@ For a POST or PUT with a body, turn on **Send Body** in the HTTP Request node.
 | Route | Switch on the decision |
 | Wait (backoff or Retry-After) | Waits `waitSeconds`, then loops back to HTTP Request |
 | Result | Success output |
-| Failed | Final failure, with status and attempt count. In production, add a Stop and Error node or an alert after it |
+| Failed | Final failure: status, attempts, reason, method, url, error, body |
+| Stop and Error | Marks the execution as failed with a message like `HTTP request failed: status 503 after 3 attempt(s)` |
+
+**Option:** if you want a failure to end the run quietly on `Failed` (for example while a later node handles it), delete the Stop and Error node. The default is to fail the execution, which is what you want in production.
 
 The workflow ships inactive. Leave it that way until `apiBase` points where you intend.
 
@@ -94,7 +98,7 @@ N8N_BIN=$(which n8n) npm test     # also imports and executes the workflow on a 
 
 The n8n tests check, against real executions:
 - 503, 503, 200: recovers on attempt 3, with ~1 s and ~4 s waits
-- three 503s: exactly 3 requests, ends on `Failed` with `status: 503`, `attempts: 3`
+- three 503s: exactly 3 requests, ends on `Failed` with `status: 503`, `attempts: 3`, and the execution is marked failed by Stop and Error
 - 401: exactly 1 request
 - 429 with `Retry-After` in seconds and as an HTTP-date: waits at least that long
 - 429 with a `Retry-After` above `maxWaitMs`: fails fast, 1 request

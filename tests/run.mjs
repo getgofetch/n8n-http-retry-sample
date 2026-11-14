@@ -45,17 +45,35 @@ function n8nBin() {
   return process.env.N8N_BIN || "n8n";
 }
 
-function runN8n(args, env, timeoutMs = 180000) {
+function runN8n(args, env, timeoutMs = 180000, allowFail = false) {
   const res = spawnSync(n8nBin(), args, { env, encoding: "utf8", timeout: timeoutMs, maxBuffer: 20 * 1024 * 1024 });
   const text = String(res.stdout || "") + String(res.stderr || "");
-  if (res.status !== 0) throw new Error("n8n " + args.join(" ") + " exited " + res.status + "\n" + text.slice(-4000));
+  if (res.status !== 0 && !allowFail) throw new Error("n8n " + args.join(" ") + " exited " + res.status + "\n" + text.slice(-4000));
   return text;
 }
 
 function extractJson(text) {
   const i = text.indexOf("\n{") >= 0 ? text.indexOf("\n{") + 1 : text.indexOf("{");
   if (i < 0) throw new Error("no JSON in n8n output: " + text.slice(-400));
-  return JSON.parse(text.slice(i));
+  const end = text.indexOf("\n}", i);
+  return JSON.parse(end >= 0 ? text.slice(i, end + 2) : text.slice(i));
+}
+
+/**
+ * Execute one workflow. A run that ends on a Stop and Error node after a failure node
+ * ("Failed" or "<node> failed") is returned as { status: "error", node: <failure node>, item, errorMessage }.
+ */
+function executeById(id, name, env) {
+  const data = extractJson(runN8n(["execute", "--id=" + id, "--rawOutput"], env, 180000, true));
+  const rd = data.data.resultData;
+  const last = rd.lastNodeExecuted;
+  const out = (n) => rd.runData[n][0].data.main[0][0].json;
+  if (data.status === "success" && data.finished === true) return { status: "success", node: last, item: out(last) };
+  const failNode = Object.keys(rd.runData).find((n) => n === "Failed" || / failed$/.test(n));
+  if (data.status === "error" && /^Stop and Error/.test(last) && failNode) {
+    return { status: "error", node: failNode, item: out(failNode), stoppedBy: last, errorMessage: rd.error && rd.error.message };
+  }
+  throw new Error(name + " did not succeed: " + JSON.stringify({ status: data.status, last, error: rd.error }));
 }
 
 /**
@@ -110,12 +128,7 @@ export function setupN8n(workflowFile, variants = {}) {
     execute(name) {
       const id = byName[name];
       if (!id) throw new Error("workflow not imported: " + name + " (have " + JSON.stringify(byName) + ")");
-      const data = extractJson(runN8n(["execute", "--id=" + id, "--rawOutput"], env));
-      if (data.status !== "success" || data.finished !== true) {
-        throw new Error(name + " did not succeed: " + JSON.stringify({ status: data.status, error: data.data && data.data.resultData && data.data.resultData.error }));
-      }
-      const node = data.data.resultData.lastNodeExecuted;
-      return { node, item: data.data.resultData.runData[node][0].data.main[0][0].json };
+      return executeById(id, name, env);
     },
     close() {
       try { rmSync(userFolder, { recursive: true, force: true }); } catch {}

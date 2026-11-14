@@ -28,6 +28,8 @@ test("workflow shape: inactive, Manual Trigger, no blanket retryOnFail, error ou
   const route = wf.connections.Route.main.map((o) => o[0].node);
   assert.deepEqual(route, ["Wait (backoff or Retry-After)", "Result", "Failed"]);
   assert.equal(wf.connections["Wait (backoff or Retry-After)"].main[0][0].node, "HTTP Request");
+  assert.equal(wf.connections.Failed.main[0][0].node, "Stop and Error", "final failures mark the execution failed");
+  assert.equal(wf.nodes.find((n) => n.name === "Stop and Error").type, "n8n-nodes-base.stopAndError");
 });
 
 const VARIANTS = {
@@ -69,6 +71,8 @@ test("default mock: 503, 503, 200 recovers on attempt 3", async () => {
 test("three 503s: exactly 3 requests, final status visible on the Failed branch", async () => {
   const r = await run([{ status: 503 }]);
   assert.equal(r.node, "Failed");
+  assert.equal(r.status, "error", "Stop and Error marks the execution failed");
+  assert.match(String(r.errorMessage), /HTTP request failed/);
   assert.equal(r.count, 3);
   assert.equal(r.item.ok, false);
   assert.equal(r.item.status, 503);
@@ -79,6 +83,8 @@ test("three 503s: exactly 3 requests, final status visible on the Failed branch"
 test("401: exactly 1 request, no retry", async () => {
   const r = await run([{ status: 401, body: { error: "bad token" } }]);
   assert.equal(r.node, "Failed");
+  assert.equal(r.status, "error", "Stop and Error marks the execution failed");
+  assert.match(String(r.errorMessage), /HTTP request failed/);
   assert.equal(r.count, 1);
   assert.equal(r.item.status, 401);
   assert.equal(r.item.attempts, 1);
@@ -104,6 +110,8 @@ test("429 with Retry-After as an HTTP-date is honoured", async () => {
 test("429 with a Retry-After above maxWaitMs fails fast", async () => {
   const r = await run([{ status: 429, headers: { "Retry-After": "120" } }]);
   assert.equal(r.node, "Failed");
+  assert.equal(r.status, "error", "Stop and Error marks the execution failed");
+  assert.match(String(r.errorMessage), /HTTP request failed/);
   assert.equal(r.count, 1);
   assert.equal(r.item.reason, "retry_after_exceeds_max_wait");
 });
@@ -117,6 +125,8 @@ test("503 then 200 recovers on attempt 2", async () => {
 test("POST is not retried without the opt-in", async () => {
   const r = await run([{ status: 503 }, { status: 200 }], "retry-post");
   assert.equal(r.node, "Failed");
+  assert.equal(r.status, "error", "Stop and Error marks the execution failed");
+  assert.match(String(r.errorMessage), /HTTP request failed/);
   assert.equal(r.count, 1);
   assert.equal(r.item.reason, "method_not_retried");
 });
@@ -132,6 +142,8 @@ test("network error (connection refused) is retried, then ends on the Failed bra
   await mock.configure([{ status: 200 }]);
   const r = n8n.execute("retry-network");
   assert.equal(r.node, "Failed");
+  assert.equal(r.status, "error", "Stop and Error marks the execution failed");
+  assert.match(String(r.errorMessage), /HTTP request failed/);
   assert.equal(r.item.status, null);
   assert.equal(r.item.attempts, 3);
   assert.equal(r.item.reason, "max_attempts_reached");
