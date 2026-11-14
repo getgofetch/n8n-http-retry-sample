@@ -4,7 +4,7 @@
     {
       "parameters": {},
       "id": "1ec48150-022e-4933-a110-84900de91cf7",
-      "name": "When clicking \u2018Execute workflow\u2019",
+      "name": "When clicking ‘Execute workflow’",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
@@ -16,7 +16,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Change apiBase to your own API. The included mock-server.mjs listens on this URL.\nreturn [{ json: { apiBase: 'http://127.0.0.1:34771' } }];\n"
+        "jsCode": "// Edit these values. The retry policy lives in the \"Decide\" node and reads them.\nconst config = {\n  apiBase: 'http://127.0.0.1:34771', // the included mock-server.mjs listens here\n  path: '/flaky',\n  method: 'GET',          // GET, HEAD, PUT and DELETE are retried by default\n  retryPost: false,       // POST/PATCH are retried only if this is true AND idempotencyKey is set\n  idempotencyKey: '',     // sent as the Idempotency-Key header when set\n  maxAttempts: 3,         // total requests, including the first (raise to 4 for a third retry at ~16 s)\n  baseDelayMs: 1000,      // backoff waits are ~1 s, ~4 s, ~16 s ...\n  backoffFactor: 4,\n  jitter: 0.2,            // +/- 20% randomness on each backoff wait\n  maxWaitMs: 30000,       // longest single wait. A longer Retry-After fails fast instead.\n                          // Keep this under 65000: shorter waits stay in memory, longer ones are parked in the database.\n  timeoutMs: 10000,       // per-request timeout\n};\n\nconfig.method = String(config.method).toUpperCase();\nconfig.maxAttempts = Math.min(Math.max(Math.floor(Number(config.maxAttempts) || 1), 1), 10);\nif (config.retryPost && !config.idempotencyKey) {\n  throw new Error('retryPost needs an idempotencyKey, otherwise a retried POST can run twice.');\n}\nreturn [{ json: config }];\n"
       },
       "id": "87e89abb-4c1c-451f-a08d-355d097f18b8",
       "name": "Config",
@@ -29,41 +29,185 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $('Config').item.json.apiBase }}/flaky",
+        "method": "={{ $('Config').first().json.method }}",
+        "url": "={{ $('Config').first().json.apiBase + $('Config').first().json.path }}",
         "authentication": "none",
-        "options": {}
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($('Config').first().json.idempotencyKey ? { 'Idempotency-Key': $('Config').first().json.idempotencyKey } : {}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": "={{ $('Config').first().json.timeoutMs }}"
+        }
       },
       "id": "50b5ffe2-74da-4a3a-a36d-f6bb0433a40a",
-      "name": "Fetch flaky",
+      "name": "HTTP Request",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
         440,
         0
       ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 200
+      "onError": "continueErrorOutput",
+      "notes": "No retryOnFail here on purpose. HTTP statuses come back as data (Never Error + Full Response) so Decide can read the status and Retry-After. Network errors and timeouts leave on the error output."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const r = $input.first().json;\nreturn [{ json: { ok: true, attempts: r.attempts, message: r.message || 'ok' } }];\n"
+        "jsCode": "// Retry policy. Runs once per HTTP attempt. Tunables live in the Config node.\n//   success  -> 2xx/3xx\n//   retry    -> network error, timeout, 408, 429, 5xx (not 501/505), if attempts and method allow\n//   fail     -> anything else (400, 401, 403, 404, 422 ...), or retries used up\nconst cfg = $('Config').first().json;\nconst res = $input.first().json;\nconst attempt = $runIndex + 1;\nconst now = Date.now();\n\nconst IDEMPOTENT = ['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS'];\nconst NETWORK = /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|ECONNABORTED|EAI_AGAIN|EPIPE|socket hang up|timeout/i;\n\nconst method = String(cfg.method || 'GET').toUpperCase();\nconst url = String(cfg.apiBase) + String(cfg.path || '');\nconst methodMayRetry = IDEMPOTENT.includes(method) || (cfg.retryPost === true && !!cfg.idempotencyKey);\n\nlet status = null;\nlet kind;\nlet error = null;\nif (typeof res.statusCode === 'number') {\n  status = res.statusCode;\n  if (status < 400) kind = 'ok';\n  else if (status === 408 || status === 429 || (status >= 500 && status !== 501 && status !== 505)) kind = 'transient';\n  else kind = 'permanent';\n} else {\n  // Came in on the HTTP node's error output (On Error > Continue (using error output)).\n  const e = res.error || res;\n  error = String((e && (e.message || e.description)) || JSON.stringify(e)).slice(0, 300);\n  const code = String((e && (e.code || (e.cause && e.cause.code))) || '');\n  kind = NETWORK.test(code + ' ' + error) ? 'transient' : 'permanent';\n}\n\nfunction header(name) {\n  const h = res.headers || {};\n  const key = Object.keys(h).find((k) => k.toLowerCase() === name);\n  return key === undefined ? undefined : h[key];\n}\n\n// Retry-After: delta-seconds (\"2\") or an HTTP-date (\"Wed, 21 Oct 2026 07:28:00 GMT\").\nfunction retryAfterMs() {\n  const raw = header('retry-after');\n  if (raw === undefined || raw === null || raw === '') return null;\n  const s = String(Array.isArray(raw) ? raw[0] : raw).trim();\n  if (/^\\d+$/.test(s)) return Number(s) * 1000;\n  const at = Date.parse(s);\n  return Number.isNaN(at) ? null : Math.max(0, at - now);\n}\n\nfunction backoffMs() {\n  const base = Number(cfg.baseDelayMs) * Math.pow(Number(cfg.backoffFactor), attempt - 1);\n  const j = Number(cfg.jitter) || 0;\n  return Math.round(base * (1 - j + Math.random() * 2 * j));\n}\n\nconst out = { decision: 'fail', ok: false, status, attempts: attempt, method, url, reason: '', waitSeconds: 0, retryAfterMs: null, error, body: res.body === undefined ? null : res.body };\n\nif (kind === 'ok') {\n  out.decision = 'success';\n  out.ok = true;\n  out.reason = 'ok';\n} else if (kind === 'permanent') {\n  out.reason = status ? 'not_retryable_status' : 'not_retryable_error';\n} else if (!methodMayRetry) {\n  out.reason = 'method_not_retried'; // POST/PATCH without retryPost + idempotencyKey\n} else if (attempt >= cfg.maxAttempts) {\n  out.reason = 'max_attempts_reached';\n} else {\n  const ra = (status === 429 || status === 503) ? retryAfterMs() : null;\n  out.retryAfterMs = ra;\n  if (ra !== null && ra > cfg.maxWaitMs) {\n    out.reason = 'retry_after_exceeds_max_wait';\n  } else {\n    const wait = Math.min(ra !== null ? ra : backoffMs(), cfg.maxWaitMs);\n    out.decision = 'retry';\n    out.reason = ra !== null ? 'retry_after' : 'backoff';\n    out.waitSeconds = Math.round(wait / 10) / 100;\n  }\n}\nreturn [{ json: out }];\n"
+      },
+      "id": "3b0f6c2e-6a51-4d8e-9a57-0c1f0b7d2a11",
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1a9b0f2-0001-4a7e-8d1e-000000000001",
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "retry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "retry"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1a9b0f2-0002-4a7e-8d1e-000000000002",
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "success",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "success"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c1a9b0f2-0003-4a7e-8d1e-000000000003",
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "fail",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "fail"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9d6c1a7e-2f44-4b3c-8e8b-5a2b6c0d4e22",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "5e8a2c41-7b3d-4f19-a6c2-8d0e1f2a3b33",
+      "name": "Wait (backoff or Retry-After)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        -200
+      ],
+      "webhookId": "0c7a1f5e-4d2b-4e8a-9b3c-6f1d2e3a4b44"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $input.first().json;\nconst body = d.body && typeof d.body === 'object' ? d.body : {};\nreturn [{ json: { ok: true, status: d.status, attempts: d.attempts, message: body.message || 'ok' } }];\n"
       },
       "id": "6e7d50e8-4f47-41ef-a418-7cf8cfa26721",
       "name": "Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        660,
+        1120,
         0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Final failure. Status and attempt count stay visible here.\n// In production, add a Stop and Error node after this (or an alert) so the execution is marked failed.\nconst d = $input.first().json;\nreturn [{ json: { ok: false, status: d.status, attempts: d.attempts, reason: d.reason, method: d.method, url: d.url, error: d.error, body: d.body } }];\n"
+      },
+      "id": "7f1e3d55-8c2a-4b6d-9e0f-1a2b3c4d5e55",
+      "name": "Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        200
       ]
     }
   ],
   "connections": {
-    "When clicking \u2018Execute workflow\u2019": {
+    "When clicking ‘Execute workflow’": {
       "main": [
         [
           {
@@ -78,18 +222,72 @@
       "main": [
         [
           {
-            "node": "Fetch flaky",
+            "node": "HTTP Request",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch flaky": {
+    "HTTP Request": {
       "main": [
         [
           {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Wait (backoff or Retry-After)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (backoff or Retry-After)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
             "type": "main",
             "index": 0
           }
