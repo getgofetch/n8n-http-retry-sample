@@ -111,3 +111,14 @@ The n8n tests check, against real executions:
 MIT. See `LICENSE`.
 
 No support is promised. Official n8n docs remain the source of truth when the product changes.
+
+## Want the full kits?
+
+This sample is one workflow from a larger set. If it saved you time, the paid kits take the same approach to more jobs:
+
+- [n8n Skill and Workflows Pack](https://getgofetch.gumroad.com/l/mltmq?ref=github), US$39: production workflows with error branches, plus a Claude Code skill for building n8n flows
+- [n8n Agent Pack](https://getgofetch.gumroad.com/l/ggqsih?ref=github), US$29: Tool Router, Approval Gate and Guardrails workflows
+- [Workflows + Agent](https://getgofetch.gumroad.com/l/volspk?ref=github), US$49: both of the above
+- [Lead Bundle](https://getgofetch.gumroad.com/l/zqqrzd?ref=github), US$79: both n8n packs plus the Workers/MCP skills and API-key kit
+
+This sample stays free and MIT licensed either way.
