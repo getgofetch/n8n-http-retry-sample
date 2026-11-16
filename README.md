@@ -1,5 +1,7 @@
 # n8n HTTP retry sample
 
+> **Want the full kits?** The paid n8n packs take this same approach to more jobs. See [the kits on Gumroad](https://getgofetch.gumroad.com/?utm_source=github&utm_campaign=retry-sample) or the list [at the bottom](#want-the-full-kits).
+
 A single, importable n8n workflow that retries a failing HTTP request the way most APIs expect: only when a retry can help, with growing waits, and with a clear failure branch when it gives up. MIT licensed. No account, no signup, and no paid nodes.
 
 v2 was rebuilt from community feedback on r/n8n and the n8n forum (see `CHANGELOG.md`). It was imported and executed on a local n8n 2.47.4 (SQLite) against the mock server in this repo.
@@ -116,9 +118,9 @@ No support is promised. Official n8n docs remain the source of truth when the pr
 
 This sample is one workflow from a larger set. If it saved you time, the paid kits take the same approach to more jobs:
 
-- [n8n Skill and Workflows Pack](https://getgofetch.gumroad.com/l/mltmq?ref=github), US$39: production workflows with error branches, plus a Claude Code skill for building n8n flows
-- [n8n Agent Pack](https://getgofetch.gumroad.com/l/ggqsih?ref=github), US$29: Tool Router, Approval Gate and Guardrails workflows
-- [Workflows + Agent](https://getgofetch.gumroad.com/l/volspk?ref=github), US$49: both of the above
-- [Lead Bundle](https://getgofetch.gumroad.com/l/zqqrzd?ref=github), US$79: both n8n packs plus the Workers/MCP skills and API-key kit
+- [n8n Skill and Workflows Pack](https://getgofetch.gumroad.com/l/mltmq?utm_source=github&utm_campaign=retry-sample), US$39: production workflows with error branches, plus a Claude Code skill for building n8n flows
+- [n8n Agent Pack](https://getgofetch.gumroad.com/l/ggqsih?utm_source=github&utm_campaign=retry-sample), US$29: Tool Router, Approval Gate and Guardrails workflows
+- [Workflows + Agent](https://getgofetch.gumroad.com/l/volspk?utm_source=github&utm_campaign=retry-sample), US$49: both of the above
+- [Lead Bundle](https://getgofetch.gumroad.com/l/zqqrzd?utm_source=github&utm_campaign=retry-sample), US$79: both n8n packs plus the Workers/MCP skills and API-key kit
 
 This sample stays free and MIT licensed either way.
