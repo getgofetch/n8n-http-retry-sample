@@ -1,6 +1,6 @@
 # n8n HTTP retry sample
 
-> **Want the full kits?** The paid n8n packs take this same approach to more jobs. See [the kits on Gumroad](https://getgofetch.gumroad.com/?utm_source=github&utm_campaign=retry-sample) or the list [at the bottom](#want-the-full-kits).
+**Want more?** The paid n8n packs that grow from this sample are on [the gofetch Gumroad store](https://getgofetch.gumroad.com/?utm_source=github&utm_medium=readme&utm_campaign=retry-sample). Pack list: [Want more?](#want-more).
 
 A single, importable n8n workflow that retries a failing HTTP request the way most APIs expect: only when a retry can help, with growing waits, and with a clear failure branch when it gives up. MIT licensed. No account, no signup, and no paid nodes.
 
@@ -114,13 +114,13 @@ MIT. See `LICENSE`.
 
 No support is promised. Official n8n docs remain the source of truth when the product changes.
 
-## Want the full kits?
+## Want more?
 
-This sample is one workflow from a larger set. If it saved you time, the paid kits take the same approach to more jobs:
+This sample is one workflow from a larger set. If it saved you time, the paid kits on [the gofetch Gumroad store](https://getgofetch.gumroad.com/?utm_source=github&utm_medium=readme&utm_campaign=retry-sample) take the same approach to more jobs:
 
-- [n8n Skill and Workflows Pack](https://getgofetch.gumroad.com/l/mltmq?utm_source=github&utm_campaign=retry-sample), US$39: production workflows with error branches, plus a Claude Code skill for building n8n flows
-- [n8n Agent Pack](https://getgofetch.gumroad.com/l/ggqsih?utm_source=github&utm_campaign=retry-sample), US$29: Tool Router, Approval Gate and Guardrails workflows
-- [Workflows + Agent](https://getgofetch.gumroad.com/l/volspk?utm_source=github&utm_campaign=retry-sample), US$49: both of the above
-- [Lead Bundle](https://getgofetch.gumroad.com/l/zqqrzd?utm_source=github&utm_campaign=retry-sample), US$79: both n8n packs plus the Workers/MCP skills and API-key kit
+- [n8n Skill and Workflows Pack](https://getgofetch.gumroad.com/l/mltmq?utm_source=github&utm_medium=readme&utm_campaign=retry-sample), US$39: production workflows with error branches, plus a Claude Code skill for building n8n flows
+- [n8n Agent Pack](https://getgofetch.gumroad.com/l/ggqsih?utm_source=github&utm_medium=readme&utm_campaign=retry-sample), US$29: Tool Router, Approval Gate and Guardrails workflows
+- [Workflows + Agent](https://getgofetch.gumroad.com/l/volspk?utm_source=github&utm_medium=readme&utm_campaign=retry-sample), US$49: both of the above
+- [Lead Bundle](https://getgofetch.gumroad.com/l/zqqrzd?utm_source=github&utm_medium=readme&utm_campaign=retry-sample), US$79: both n8n packs plus the Workers/MCP skills and API-key kit
 
 This sample stays free and MIT licensed either way.
